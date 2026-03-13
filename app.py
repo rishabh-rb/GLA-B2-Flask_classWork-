@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 from urllib.parse import quote_plus
 
 from flask import Flask, render_template, redirect, session, url_for, request, jsonify
@@ -6,17 +7,40 @@ from flask_migrate import Migrate
 from form import RegistrationForm, LoginForm, UserForm
 from model.users import db, User
 
+
+def load_local_env_file() -> None:
+    """Load key=value pairs from .env for local runs."""
+    env_file = Path('.env')
+    if not env_file.exists():
+        return
+
+    for raw_line in env_file.read_text(encoding='utf-8').splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith('#') or '=' not in line:
+            continue
+        key, value = line.split('=', 1)
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        os.environ.setdefault(key, value)
+
 app = Flask(__name__)
+
+load_local_env_file()
+
 app.config['SECRET_KEY'] = 'your_secret_key'
 
-# Build a safe database URL (supports passwords with special characters).
-db_user = os.getenv('POSTGRES_USER', 'rishabhbarnwal')
-db_password = quote_plus(os.getenv('POSTGRES_PASSWORD', 'Root@123'))
-db_host = os.getenv('POSTGRES_HOST', 'localhost')
-db_name = os.getenv('POSTGRES_DB', 'rishabhbarnwal')
-app.config['SQLALCHEMY_DATABASE_URI'] = (
-    f'postgresql://{db_user}:{db_password}@{db_host}/{db_name}'
-)
+database_url = os.getenv('DATABASE_URL')
+if database_url:
+    app.config['SQLALCHEMY_DATABASE_URI'] = database_url
+else:
+    # Fallback for existing POSTGRES_* variable setup.
+    db_user = os.getenv('POSTGRES_USER', 'rishabhbarnwal')
+    db_password = quote_plus(os.getenv('POSTGRES_PASSWORD', 'Root@123'))
+    db_host = os.getenv('POSTGRES_HOST', 'localhost')
+    db_name = os.getenv('POSTGRES_DB', 'rishabhbarnwal')
+    app.config['SQLALCHEMY_DATABASE_URI'] = (
+        f'postgresql://{db_user}:{db_password}@{db_host}/{db_name}'
+    )
 
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
