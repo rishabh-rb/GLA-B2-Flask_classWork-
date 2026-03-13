@@ -63,6 +63,10 @@ app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {'pool_pre_ping': True}
 db.init_app(app)
 migrate = Migrate(app, db)
 
+# Safety net for fresh deployments where migrations were not executed yet.
+with app.app_context():
+    db.create_all()
+
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     form = RegistrationForm()
