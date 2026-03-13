@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from urllib.parse import quote_plus
+from urllib.parse import quote_plus, urlparse, urlunparse, parse_qsl, urlencode
 
 from flask import Flask, render_template, redirect, session, url_for, request, jsonify
 from flask_migrate import Migrate
@@ -23,15 +23,30 @@ def load_local_env_file() -> None:
         value = value.strip().strip('"').strip("'")
         os.environ.setdefault(key, value)
 
+
+def normalize_database_url(raw_url: str) -> str:
+    """Normalize DATABASE_URL for SQLAlchemy/Render compatibility."""
+    if raw_url.startswith('postgres://'):
+        raw_url = raw_url.replace('postgres://', 'postgresql://', 1)
+
+    parsed = urlparse(raw_url)
+    if parsed.scheme.startswith('postgresql') and parsed.hostname not in {'localhost', '127.0.0.1'}:
+        query = dict(parse_qsl(parsed.query, keep_blank_values=True))
+        query.setdefault('sslmode', 'require')
+        parsed = parsed._replace(query=urlencode(query))
+        return urlunparse(parsed)
+
+    return raw_url
+
 app = Flask(__name__)
 
 load_local_env_file()
 
-app.config['SECRET_KEY'] = 'your_secret_key'
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'your_secret_key')
 
 database_url = os.getenv('DATABASE_URL')
 if database_url:
-    app.config['SQLALCHEMY_DATABASE_URI'] = database_url
+    app.config['SQLALCHEMY_DATABASE_URI'] = normalize_database_url(database_url)
 else:
     # Fallback for existing POSTGRES_* variable setup.
     db_user = os.getenv('POSTGRES_USER', 'rishabhbarnwal')
@@ -43,6 +58,7 @@ else:
     )
 
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {'pool_pre_ping': True}
 
 db.init_app(app)
 migrate = Migrate(app, db)
