@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 from urllib.parse import quote_plus, urlparse, urlunparse, parse_qsl, urlencode
+import sqlalchemy as sa
 
 from flask import Flask, render_template, redirect, session, url_for, request, jsonify
 from flask_migrate import Migrate
@@ -63,9 +64,20 @@ app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {'pool_pre_ping': True}
 db.init_app(app)
 migrate = Migrate(app, db)
 
-# Safety net for fresh deployments where migrations were not executed yet.
+
+def ensure_user_table_exists() -> None:
+    """Create User table if missing on fresh production databases."""
+    user_table_name = User.__table__.name
+    inspector = sa.inspect(db.engine)
+    if not inspector.has_table(user_table_name):
+        User.__table__.create(bind=db.engine, checkfirst=True)
+
+
 with app.app_context():
+    # Keep this as a broad safety net.
     db.create_all()
+    # Also enforce the specific user table needed by login/register.
+    ensure_user_table_exists()
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
