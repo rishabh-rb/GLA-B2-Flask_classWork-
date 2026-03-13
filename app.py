@@ -124,6 +124,14 @@ def login():
         )
     return render_template('login.html', form=form)
 
+@app.route('/dashboardss')
+def dashboardss():
+    username = session.get('username')
+    if not username:
+        return redirect(url_for('login'))
+    users = User.query.all()
+    form = UserForm()
+    return render_template('dashboardss.html', username=username, users=users, form=form)
 
 @app.route('/dashboard')
 def dashboard():
